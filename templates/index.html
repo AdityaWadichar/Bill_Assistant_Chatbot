@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bill Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script>
+        let extractedJson = null;
+
+        function uploadPDF() {
+            let formData = new FormData();
+            let fileInput = document.getElementById("pdfFile");
+
+            if (!fileInput.files.length) {
+                document.getElementById("uploadMessage").innerText = "No document selected. Please choose a file.";
+                return;
+            }
+
+            document.getElementById("uploadMessage").innerText = "Uploading..."; // Temporary status update
+
+            formData.append("file", fileInput.files[0]);
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            }).then(response => response.json())
+              .then(data => {
+                  extractedJson = data.json_data;
+                  document.getElementById("uploadMessage").innerText = "Document uploaded successfully!";
+                  document.getElementById("saveButton").style.display = "block"; // Show save button
+              })
+              .catch(error => {
+                  document.getElementById("uploadMessage").innerText = "Upload failed. Please try again.";
+                  console.error("Upload failed:", error);
+              });
+        }
+
+        function saveData() {
+            if (!extractedJson) {
+                document.getElementById("saveMessage").innerText = "No extracted data available. Please upload a document first.";
+                return;
+            }
+
+            document.getElementById("saveMessage").innerText = "Saving..."; // Show status update
+
+            fetch("/save_data", {
+                method: "POST",
+                body: JSON.stringify({ json_data: extractedJson }),
+                headers: { "Content-Type": "application/json" }
+            }).then(response => response.json())
+              .then(data => {
+                  document.getElementById("saveMessage").innerText = "Data saved successfully!";
+              })
+              .catch(error => {
+                  document.getElementById("saveMessage").innerText = "Saving failed. Please try again.";
+                  console.error("Error saving data:", error);
+              });
+        }
+
+        function askQuestion() {
+            let query = document.getElementById("question").value;
+            if (!query.trim()) return;
+
+            fetch("/ask_question", {
+                method: "POST",
+                body: JSON.stringify({ "query": query }),
+                headers: { "Content-Type": "application/json" }
+            }).then(response => response.json())
+              .then(data => displayChat(query, data.answer))
+              .catch(error => console.error("Error:", error));
+
+            document.getElementById("question").value = ""; // Clear input field
+        }
+
+        function displayChat(question, answer) {
+            let chatContainer = document.getElementById("chatContainer");
+
+            let userMessage = document.createElement("div");
+            userMessage.className = "chat user";
+            userMessage.innerText = question;
+            chatContainer.appendChild(userMessage);
+
+            let botMessage = document.createElement("div");
+            botMessage.className = "chat bot";
+            botMessage.innerText = answer;
+            chatContainer.appendChild(botMessage);
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("question").addEventListener("keypress", function(event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    askQuestion();
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <h1>Bill Assistant</h1>
+
+    <div style="margin-bottom: 20px;">
+        <h3>Upload Document</h3>
+        <input type="file" id="pdfFile">
+        <button onclick="uploadPDF()">Upload Document</button>
+        <p id="uploadMessage" style="color: green; font-weight: bold;"></p> <!-- Dynamic upload message -->
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <button id="saveButton" onclick="saveData()" style="display: none;">Save Extracted Data</button>
+        <p id="saveMessage" style="color: green; font-weight: bold;"></p> <!-- Dynamic save message -->
+    </div>
+
+    <div id="chatContainer"></div>
+
+    <div class="chat-input">
+        <input type="text" id="question" placeholder="Ask a question about your bill...">
+        <button onclick="askQuestion()">Ask</button>
+    </div>
+</body>
+</html>
